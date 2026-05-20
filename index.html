@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizador de Imágenes a WebP</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F3F4F6;
+            --text: #1F2937;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: white;
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            color: var(--primary);
+        }
+
+        p {
+            color: #6B7280;
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed #D1D5DB;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .custom-file-upload:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .controls {
+            margin: 20px 0;
+            text-align: left;
+            display: none; /* Se oculta hasta que haya imagen */
+        }
+
+        .controls label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .preview-container {
+            margin-top: 20px;
+            display: none; /* Se oculta hasta que haya imagen */
+        }
+
+        #imagePreview {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            background: #F9FAFB;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-weight: 500;
+        }
+
+        .stats .original { color: #DC2626; }
+        .stats .optimized { color: #059669; }
+
+        #downloadBtn {
+            display: block;
+            width: 100%;
+            background-color: #10B981;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        #downloadBtn:hover {
+            background-color: #059669;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Optimizador a WebP</h1>
+        <p>Convierte y comprime tus imágenes PNG/JPG para la web sin perder calidad visible.</p>
+
+        <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+            <label class="custom-file-upload">Seleccionar Imagen</label>
+            <input type="file" id="imageInput" accept="image/png, image/jpeg, image/jpg">
+            <div id="fileName" style="margin-top: 10px; color: #6B7280; font-size: 0.9rem;">Ningún archivo seleccionado</div>
+        </div>
+
+        <div class="controls" id="controls">
+            <label>
+                <span>Calidad de Compresión:</span>
+                <span id="qualityValue">80%</span>
+            </label>
+            <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.8">
+            <small style="color: #6B7280; font-size: 0.8rem; display: block; margin-top: 5px;">
+                Mueve el deslizador. 80% suele ser el balance perfecto entre peso y calidad.
+            </small>
+        </div>
+
+        <div class="preview-container" id="previewContainer">
+            <img id="imagePreview" alt="Vista previa de la imagen">
+            
+            <div class="stats">
+                <div class="original">Peso Original: <br><span id="originalSize">0 MB</span></div>
+                <div class="optimized">Peso WebP: <br><span id="optimizedSize">0 MB</span></div>
+            </div>
+
+            <a id="downloadBtn" download="imagen_optimizada.webp">Descargar Imagen WebP</a>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const fileNameDisplay = document.getElementById('fileName');
+        const qualitySlider = document.getElementById('quality');
+        const qualityValue = document.getElementById('qualityValue');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewContainer = document.getElementById('previewContainer');
+        const controls = document.getElementById('controls');
+        const originalSizeDisplay = document.getElementById('originalSize');
+        const optimizedSizeDisplay = document.getElementById('optimizedSize');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let currentFile = null;
+        let currentImageObj = null;
+
+        // Formatear bytes a KB o MB
+        function formatBytes(bytes) {
+            if (bytes < 1024 * 1024) {
+                return (bytes / 1024).toFixed(2) + ' KB';
+            } else {
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            }
+        }
+
+        // Cuando se selecciona una imagen
+        imageInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                currentFile = file;
+                fileNameDisplay.textContent = file.name;
+                originalSizeDisplay.textContent = formatBytes(file.size);
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        currentImageObj = img;
+                        imagePreview.src = img.src;
+                        controls.style.display = 'block';
+                        previewContainer.style.display = 'block';
+                        
+                        // Procesar inicial con el valor actual del deslizador
+                        processImage();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Cuando se mueve el deslizador de calidad
+        qualitySlider.addEventListener('input', function() {
+            qualityValue.textContent = Math.round(this.value * 100) + '%';
+            if (currentImageObj) {
+                processImage();
+            }
+        });
+
+        // Función principal que transforma la imagen usando el Canvas
+        function processImage() {
+            if (!currentImageObj) return;
+
+            const quality = parseFloat(qualitySlider.value);
+            
+            // Crear un canvas con las dimensiones originales de la imagen
+            const canvas = document.createElement('canvas');
+            canvas.width = currentImageObj.width;
+            canvas.height = currentImageObj.height;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Dibujar la imagen en el canvas
+            ctx.drawImage(currentImageObj, 0, 0);
+            
+            // Extraer la imagen del canvas en formato WebP con la calidad deseada
+            canvas.toBlob(function(blob) {
+                if (blob) {
+                    // Actualizar el peso optimizado
+                    optimizedSizeDisplay.textContent = formatBytes(blob.size);
+                    
+                    // Crear un enlace temporal para la descarga
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Actualizar el botón de descarga
+                    downloadBtn.href = url;
+                    
+                    // Nombrar el archivo de salida
+                    const originalName = currentFile.name.split('.')[0];
+                    downloadBtn.download = `${originalName}_optimizada.webp`;
+                }
+            }, 'image/webp', quality);
+        }
+    </script>
+</body>
+</html>
