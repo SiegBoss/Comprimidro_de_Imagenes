@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renombrador Masivo de Archivos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #1E293B;      /* Tono sobrio y profesional */
+            --primary-hover: #0F172A;
+            --accent: #2563EB;       /* Azul corporativo para la acción principal */
+            --accent-hover: #1D4ED8;
+            --bg: #F1F5F9;
+            --surface: #FFFFFF;
+            --text-main: #334155;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: var(--surface);
+            padding: 2.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: 600;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .upload-section {
+            border: 1px dashed #CBD5E1;
+            background-color: #F8FAFC;
+            border-radius: 6px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 25px;
+        }
+
+        .upload-section:hover {
+            border-color: var(--accent);
+            background-color: #EFF6FF;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn-select {
+            background-color: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .settings-panel {
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 25px;
+            display: none; /* Oculto hasta subir archivos */
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        input[type="text"] {
+            padding: 10px 12px;
+            border: 1px solid #CBD5E1;
+            border-radius: 4px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: monospace;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .preview-table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 25px;
+            display: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        th {
+            background-color: #F8FAFC;
+            padding: 12px 15px;
+            font-weight: 600;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .new-name {
+            font-weight: 600;
+            color: var(--accent);
+            font-family: monospace;
+        }
+
+        .btn-download {
+            width: 100%;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: none;
+        }
+
+        .btn-download:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-download:disabled {
+            background-color: #94A3B8;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Renombrador Masivo</h1>
+        
+        <div class="upload-section" onclick="document.getElementById('fileInput').click()">
+            <span class="btn-select">Seleccionar Archivos</span>
+            <input type="file" id="fileInput" multiple>
+            <div id="fileCount" class="hint" style="margin-top: 8px;">No se han seleccionado archivos</div>
+        </div>
+
+        <div class="settings-panel" id="settingsPanel">
+            <div class="input-group">
+                <label for="baseName">Nombre Base:</label>
+                <input type="text" id="baseName" placeholder="Ejemplo: imagen_producto" value="imagen">
+                <span class="hint">Los espacios se cambiarán por guiones bajos. Se agregará "_1", "_2", etc. automáticamente.</span>
+            </div>
+        </div>
+
+        <div class="preview-table-container" id="tableContainer">
+            <table id="previewTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nombre Original</th>
+                        <th>Nuevo Nombre</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    </tbody>
+            </table>
+        </div>
+
+        <button id="downloadBtn" class="btn-download">Descargar Archivos (ZIP)</button>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileCountDisplay = document.getElementById('fileCount');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const baseNameInput = document.getElementById('baseName');
+        const tableContainer = document.getElementById('tableContainer');
+        const tableBody = document.getElementById('tableBody');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        let selectedFiles = [];
+
+        // Función para limpiar y estandarizar el nombre base
+        function formatBaseName(name) {
+            // Convertir a minúsculas, reemplazar espacios por guiones bajos y quitar caracteres especiales
+            let clean = name.trim().toLowerCase()
+                            .replace(/\s+/g, '_')
+                            .replace(/[^a-z0-9_]/g, '');
+            return clean || 'archivo'; // Si queda vacío, usar 'archivo' por defecto
+        }
+
+        // Obtener la extensión de un archivo
+        function getExtension(filename) {
+            return filename.slice((Math.max(0, filename.lastIndexOf(".")) || Infinity) + 1);
+        }
+
+        // Actualizar la tabla de vista previa
+        function updatePreview() {
+            tableBody.innerHTML = '';
+            const baseText = formatBaseName(baseNameInput.value);
+
+            selectedFiles.forEach((file, index) => {
+                const ext = getExtension(file.name);
+                // Construir el nuevo nombre: base_1.ext, base_2.ext
+                const newFileName = `${baseText}_${index + 1}.${ext}`;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td title="${file.name}">${file.name}</td>
+                    <td class="new-name">${newFileName}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Cuando se seleccionan archivos
+        fileInput.addEventListener('change', function(event) {
+            selectedFiles = Array.from(event.target.files);
+            
+            if (selectedFiles.length > 0) {
+                fileCountDisplay.textContent = `${selectedFiles.length} archivo(s) cargado(s)`;
+                settingsPanel.style.display = 'block';
+                tableContainer.style.display = 'block';
+                downloadBtn.style.display = 'block';
+                
+                updatePreview();
+            }
+        });
+
+        // Actualizar vista previa en tiempo real mientras el usuario escribe
+        baseNameInput.addEventListener('input', updatePreview);
+
+        // Generar ZIP y descargar
+        downloadBtn.addEventListener('click', function() {
+            if (selectedFiles.length === 0) return;
+
+            const zip = new JSZip();
+            const baseText = formatBaseName(baseNameInput.value);
+            
+            downloadBtn.textContent = "Empaquetando ZIP...";
+            downloadBtn.disabled = true;
+
+            selectedFiles.forEach((file, index) => {
+                const ext = getExtension(file.name);
+                const newFileName = `${baseText}_${index + 1}.${ext}`;
+                // Agregar el archivo crudo al ZIP con su nuevo nombre
+                zip.file(newFileName, file);
+            });
+
+            zip.generateAsync({ type: "blob" }).then(function(content) {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${baseText}_lote.zip`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                downloadBtn.textContent = "Descargar Archivos (ZIP)";
+                downloadBtn.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>
