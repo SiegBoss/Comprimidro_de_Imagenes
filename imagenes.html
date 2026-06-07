@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizador WebP</title>
+    <link rel="stylesheet" href="global.css">
+    <link rel="icon" type="image/png" href="./images/logo_willy.png" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .upload-area {
+            border: 2px dashed #CBD5E1; border-radius: 8px; padding: 3rem 2rem;
+            text-align: center; cursor: pointer; transition: all 0.3s ease;
+            margin-bottom: 1.5rem; background-color: #F8FAFC;
+        }
+        .upload-area:hover { border-color: var(--accent); }
+        
+        /* Nuevo estilo para cuando se arrastran archivos encima */
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background-color: #EFF6FF;
+            transform: scale(1.02);
+        }
+
+        input[type="file"] { display: none; }
+        
+        .btn-upload {
+            background-color: var(--accent); color: white; padding: 10px 20px;
+            border-radius: 6px; font-weight: 600; display: inline-block; margin-bottom: 10px;
+        }
+        
+        .controls {
+            background: #F8FAFC; padding: 15px; border-radius: 8px;
+            margin-bottom: 20px; display: none; border: 1px solid var(--border);
+        }
+        .controls label { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 10px; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+        .btn-download-all {
+            display: none; width: 100%; background-color: #10B981; color: white;
+            border: none; padding: 14px; border-radius: 6px; font-weight: 600;
+            cursor: pointer; margin-bottom: 25px; font-size: 1rem; transition: background-color 0.2s;
+        }
+        .btn-download-all:hover { background-color: #059669; }
+        .btn-download-all:disabled { background-color: #94A3B8; cursor: not-allowed; }
+
+        .images-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .image-card {
+            border: 1px solid var(--border); border-radius: 8px; padding: 15px;
+            display: flex; flex-direction: column; background-color: white;
+        }
+        .image-card img {
+            width: 100%; height: 120px; object-fit: contain; border-radius: 6px;
+            background-color: #F1F5F9; margin-bottom: 10px;
+        }
+        .file-name { font-size: 0.85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 10px; }
+        .stats { background: #F8FAFC; padding: 10px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 10px; }
+        
+        .download-btn {
+            background-color: #10B981; color: white; text-align: center;
+            padding: 8px; border-radius: 6px; text-decoration: none; font-weight: 600; margin-top: auto;
+        }
+        .download-btn:hover { background-color: #059669; }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <h2>Mis Herramientas</h2>
+        <a href="index.html" class="nav-link"> Inicio</a>
+        <a href="texto.html" class="nav-link"> Texto</a>
+        <a href="imagenes.html" class="nav-link active"> Optimizador WebP</a>
+        <a href="archivos.html" class="nav-link"> Renombrador</a>
+    </nav>
+
+    <main class="main-content">
+        <div class="card-container">
+            <h1>Optimizador a WebP (Multicarga)</h1>
+            <p class="subtitle">Convierte y comprime múltiples imágenes PNG/JPG para la web.</p>
+
+            <div class="upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+                <div class="btn-upload">Seleccionar Imágenes</div>
+                <div style="color: #64748B; font-size: 0.95rem; margin-top: 5px;">o arrastra y suelta tus archivos aquí</div>
+                <input type="file" id="imageInput" accept="image/png, image/jpeg, image/jpg" multiple>
+                <div id="fileName" style="margin-top: 15px; color: #334155; font-size: 0.9rem; font-weight: 500;">Ningún archivo seleccionado</div>
+            </div>
+
+            <div class="controls" id="controls">
+                <label><span>Calidad de Compresión:</span> <span id="qualityValue">80%</span></label>
+                <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.8">
+            </div>
+
+            <button id="downloadAllBtn" class="btn-download-all" onclick="downloadAllImages()">Descargar Todas las Imágenes (ZIP)</button>
+
+            <div class="images-grid" id="imagesGrid"></div>
+        </div>
+    </main>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const imageInput = document.getElementById('imageInput');
+        const fileNameDisplay = document.getElementById('fileName');
+        const qualitySlider = document.getElementById('quality');
+        const qualityValue = document.getElementById('qualityValue');
+        const controls = document.getElementById('controls');
+        const imagesGrid = document.getElementById('imagesGrid');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        let imageItems = [];
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // --- LÓGICA DE ARRASTRAR Y SOLTAR (DRAG & DROP) ---
+
+        // Prevenir comportamientos por defecto del navegador
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Efectos visuales al arrastrar
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        // Manejar los archivos al soltar
+        uploadArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = Array.from(dt.files);
+            handleFiles(files);
+        }, false);
+
+        // Manejar los archivos al hacer clic en el botón
+        imageInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            handleFiles(files);
+        });
+
+        // --- FUNCIÓN CENTRAL PARA PROCESAR ARCHIVOS ---
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            // Filtramos solo imágenes
+            const imageFiles = files.filter(file => file.type.match('image.*'));
+            
+            if (imageFiles.length === 0) {
+                alert("Por favor, selecciona solo archivos de imagen (JPG, PNG).");
+                return;
+            }
+
+            fileNameDisplay.textContent = `${imageFiles.length} archivo(s) seleccionado(s)`;
+            controls.style.display = 'block';
+            downloadAllBtn.style.display = 'block';
+            imagesGrid.innerHTML = '';
+            imageItems = [];
+
+            imageFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const itemData = { 
+                            index, 
+                            file, 
+                            imgElement: img, 
+                            originalSize: file.size, 
+                            name: file.name,
+                            blob: null 
+                        };
+                        imageItems.push(itemData);
+                        createImageCard(itemData);
+                        processSingleImage(itemData, parseFloat(qualitySlider.value));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        qualitySlider.addEventListener('input', function() {
+            const quality = parseFloat(this.value);
+            qualityValue.textContent = Math.round(quality * 100) + '%';
+            imageItems.forEach(item => processSingleImage(item, quality));
+        });
+
+        function createImageCard(itemData) {
+            const card = document.createElement('div');
+            card.className = 'image-card';
+            card.id = `card-${itemData.index}`;
+            card.innerHTML = `
+                <img src="${itemData.imgElement.src}" alt="">
+                <div class="file-name" title="${itemData.name}">${itemData.name}</div>
+                <div class="stats">
+                    <span style="color: #DC2626">Orig: ${formatBytes(itemData.originalSize)}</span><br>
+                    <span style="color: #059669; font-weight:bold;">WebP: <span class="opt-size">...</span></span>
+                </div>
+                <a class="download-btn" download="${itemData.name.split('.')[0]}_optimizada.webp">Descargar</a>
+            `;
+            imagesGrid.appendChild(card);
+        }
+
+        function processSingleImage(itemData, quality) {
+            const canvas = document.createElement('canvas');
+            canvas.width = itemData.imgElement.width;
+            canvas.height = itemData.imgElement.height;
+            canvas.getContext('2d').drawImage(itemData.imgElement, 0, 0);
+            
+            canvas.toBlob(blob => {
+                if (!blob) return;
+                itemData.blob = blob;
+                const card = document.getElementById(`card-${itemData.index}`);
+                if (!card) return;
+                
+                card.querySelector('.opt-size').textContent = formatBytes(blob.size);
+                const btn = card.querySelector('.download-btn');
+                
+                if (btn.href && btn.href.startsWith('blob:')) URL.revokeObjectURL(btn.href);
+                btn.href = URL.createObjectURL(blob);
+            }, 'image/webp', quality);
+        }
+
+        function downloadAllImages() {
+            if (imageItems.length === 0) return;
+
+            const zip = new JSZip();
+            downloadAllBtn.textContent = "Empaquetando ZIP...";
+            downloadAllBtn.disabled = true;
+
+            imageItems.forEach(item => {
+                if (item.blob) {
+                    const baseName = item.name.split('.')[0];
+                    zip.file(`${baseName}_optimizada.webp`, item.blob);
+                }
+            });
+
+            zip.generateAsync({ type: "blob" }).then(content => {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `imagenes_optimizadas_webp.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                downloadAllBtn.textContent = "Descargar Todas las Imágenes (ZIP)";
+                downloadAllBtn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>

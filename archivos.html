@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renombrador Masivo</title>
+    <link rel="stylesheet" href="global.css">
+    <link rel="icon" type="image/png" href="./images/logo_willy.png" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .upload-section {
+            border: 2px dashed #CBD5E1; background-color: #F8FAFC; border-radius: 8px;
+            padding: 3rem 2rem; text-align: center; cursor: pointer; margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .upload-section:hover { border-color: var(--accent); }
+        
+        /* Efecto visual al arrastrar archivos encima */
+        .upload-section.dragover {
+            border-color: var(--accent);
+            background-color: #EFF6FF;
+            transform: scale(1.02);
+        }
+
+        input[type="file"] { display: none; }
+        
+        .btn-select { background-color: var(--accent); color: white; padding: 10px 20px; border-radius: 6px; font-weight: 600; display: inline-block; margin-bottom: 10px; }
+        
+        .settings-panel { background: #F8FAFC; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; display: none; }
+        .settings-panel label { font-weight: 600; color: var(--text-main); display: block; margin-bottom: 8px; }
+        .settings-panel input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; outline: none; font-family: monospace; }
+        .settings-panel input:focus { border-color: var(--accent); }
+        
+        .preview-container { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; display: none; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: #F1F5F9; padding: 12px; text-align: left; position: sticky; top: 0; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+        .new-name { color: var(--accent); font-family: monospace; font-weight: 600; }
+        
+        .btn-download { width: 100%; background-color: #10B981; color: white; border: none; padding: 14px; border-radius: 6px; font-weight: 600; cursor: pointer; display: none; transition: background-color 0.2s; }
+        .btn-download:hover { background-color: #059669; }
+        .btn-download:disabled { background-color: #94A3B8; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <h2>Mis Herramientas</h2>
+        <a href="index.html" class="nav-link">Inicio</a>
+        <a href="texto.html" class="nav-link">Texto</a>
+        <a href="imagenes.html" class="nav-link">Optimizador WebP</a>
+        <a href="archivos.html" class="nav-link active">Renombrador</a>
+    </nav>
+
+    <main class="main-content">
+        <div class="card-container">
+            <h1>Renombrador Masivo</h1>
+            <p class="subtitle">Sube archivos y renombralos en lote con una base común.</p>
+
+            <div class="upload-section" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                <span class="btn-select">Seleccionar Archivos</span>
+                <div style="color: #64748B; font-size: 0.95rem; margin-top: 5px;">o arrastra y suelta tus archivos aquí</div>
+                <input type="file" id="fileInput" multiple>
+                <div id="fileCount" style="margin-top: 15px; color: #334155; font-size: 0.9rem; font-weight: 500;">No se han seleccionado archivos</div>
+            </div>
+
+            <div class="settings-panel" id="settingsPanel">
+                <label for="baseName">Nombre Base:</label>
+                <input type="text" id="baseName" placeholder="Ej: imagen_producto" value="archivo">
+                <small style="color:#64748B; margin-top:5px; display:block;">Se agregarán _1, _2 automáticamente.</small>
+            </div>
+
+            <div class="preview-container" id="tableContainer">
+                <table>
+                    <thead><tr><th>#</th><th>Nombre Original</th><th>Nuevo Nombre</th></tr></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <button id="downloadBtn" class="btn-download">Descargar Archivos (ZIP)</button>
+        </div>
+    </main>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const baseNameInput = document.getElementById('baseName');
+        const tableContainer = document.getElementById('tableContainer');
+        const tableBody = document.getElementById('tableBody');
+        const downloadBtn = document.getElementById('downloadBtn');
+        let selectedFiles = [];
+
+        function formatBaseName(name) {
+            let clean = name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            return clean || 'archivo';
+        }
+
+        function getExtension(filename) { return filename.slice((Math.max(0, filename.lastIndexOf(".")) || Infinity) + 1); }
+
+        function updatePreview() {
+            tableBody.innerHTML = '';
+            const baseText = formatBaseName(baseNameInput.value);
+            selectedFiles.forEach((file, index) => {
+                const newName = `${baseText}_${index + 1}.${getExtension(file.name)}`;
+                tableBody.innerHTML += `<tr><td>${index + 1}</td><td>${file.name}</td><td class="new-name">${newName}</td></tr>`;
+            });
+        }
+
+        // --- LÓGICA DE ARRASTRAR Y SOLTAR (DRAG & DROP) ---
+
+        // Prevenir el comportamiento por defecto (que el navegador abra el archivo)
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Efectos visuales de la zona
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        // Cuando se sueltan los archivos en la zona
+        uploadArea.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = Array.from(dt.files);
+            handleFiles(files);
+        }, false);
+
+        // Cuando se seleccionan dando clic al botón
+        fileInput.addEventListener('change', e => {
+            const files = Array.from(e.target.files);
+            handleFiles(files);
+        });
+
+        // --- FUNCIÓN CENTRAL PARA PROCESAR LOS ARCHIVOS ---
+        function handleFiles(files) {
+            if (files.length > 0) {
+                selectedFiles = files; // Guardamos los archivos para el ZIP
+                document.getElementById('fileCount').textContent = `${selectedFiles.length} archivo(s) cargado(s)`;
+                settingsPanel.style.display = 'block';
+                tableContainer.style.display = 'block';
+                downloadBtn.style.display = 'block';
+                updatePreview();
+            }
+        }
+
+        baseNameInput.addEventListener('input', updatePreview);
+
+        downloadBtn.addEventListener('click', () => {
+            if (!selectedFiles.length) return;
+            const zip = new JSZip();
+            const baseText = formatBaseName(baseNameInput.value);
+            
+            downloadBtn.textContent = "Empaquetando ZIP...";
+            downloadBtn.disabled = true;
+
+            selectedFiles.forEach((file, index) => {
+                zip.file(`${baseText}_${index + 1}.${getExtension(file.name)}`, file);
+            });
+
+            zip.generateAsync({ type: "blob" }).then(content => {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url; a.download = `${baseText}_lote.zip`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                downloadBtn.textContent = "Descargar Archivos (ZIP)";
+                downloadBtn.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>

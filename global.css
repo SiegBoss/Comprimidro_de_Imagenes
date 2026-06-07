@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-body: #F1F5F9;
+    --bg-sidebar: #1E293B;
+    --text-sidebar: #F8FAFC;
+    --accent: #3B82F6;
+    --accent-hover: #2563EB;
+    --text-main: #334155;
+    --surface: #FFFFFF;
+    --border: #E2E8F0;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--bg-body);
+    color: var(--text-main);
+}
+
+/* --- Menú Lateral (Sidebar) --- */
+.sidebar {
+    width: 250px;
+    background-color: var(--bg-sidebar);
+    color: var(--text-sidebar);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    transition: width 0.3s ease;
+    flex-shrink: 0;
+}
+
+.sidebar h2 {
+    text-align: center;
+    font-size: 1.2rem;
+    margin-bottom: 30px;
+    padding: 0 20px;
+}
+
+.nav-link {
+    display: block;
+    padding: 15px 25px;
+    color: #CBD5E1;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+}
+
+.nav-link:hover, .nav-link.active {
+    background-color: #334155;
+    color: white;
+    border-left-color: var(--accent);
+}
+
+/* --- Contenedor Principal --- */
+.main-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+}
+
+.card-container {
+    background-color: var(--surface);
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.card-container h1 {
+    font-size: 1.8rem;
+    color: var(--bg-sidebar);
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 15px;
+}
+
+.card-container p.subtitle {
+    color: #64748B;
+    margin-bottom: 2rem;
+}

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transformador de Texto</title>
+    <link rel="icon" type="image/png" href="./images/logo_willy.png" />
+    <link rel="stylesheet" href="global.css">
+    <style>
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 1rem;
+            font-size: 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            resize: vertical;
+            outline: none;
+        }
+        textarea:focus { border-color: var(--accent); }
+        
+        .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        
+        .buttons button {
+            padding: 10px 16px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        .buttons button:hover { background-color: var(--accent-hover); }
+        .buttons button.btn-danger { background-color: #EF4444; }
+        .buttons button.btn-danger:hover { background-color: #DC2626; }
+
+        #toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 1000;
+        }
+        .toast {
+            background-color: #334155; color: white; padding: 12px 20px;
+            border-radius: 6px; margin-bottom: 10px; box-shadow: var(--shadow);
+            animation: fadeInOut 3s forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-10px); }
+            10%, 90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <h2>Mis Herramientas</h2>
+        <a href="index.html" class="nav-link">Inicio</a>
+        <a href="texto.html" class="nav-link active">Texto</a>
+        <a href="imagenes.html" class="nav-link">Optimizador WebP</a>
+        <a href="archivos.html" class="nav-link">Renombrador</a>
+    </nav>
+
+    <main class="main-content">
+        <div id="toast-container"></div>
+        
+        <div class="card-container">
+            <h1>Transformador de Texto</h1>
+            <textarea id="textInput" placeholder="Escribe o pega aquí tu texto..."></textarea>
+            
+            <div class="buttons">
+                <button onclick="toUpperCase()">MAYÚSCULAS</button>
+                <button onclick="toLowerCase()">minúsculas</button>
+                <button onclick="capitalizeWords()">Capitalizar Palabras</button>
+                <button onclick="copyText()">Copiar</button>
+                <button onclick="pasteText()">Pegar</button>
+                <button onclick="clearText()" class="btn-danger">Borrar</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const input = document.getElementById('textInput');
+        const toastContainer = document.getElementById('toast-container');
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function toUpperCase() { input.value = input.value.toUpperCase(); }
+        function toLowerCase() { input.value = input.value.toLowerCase(); }
+        function capitalizeWords() {
+            input.value = input.value.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+        }
+
+        async function pasteText() {
+            try {
+                const text = await navigator.clipboard.readText();
+                input.value += text;
+                showToast('Texto pegado');
+            } catch (err) { alert('No se pudo pegar: ' + err); }
+        }
+
+        function copyText() {
+            if(!input.value) return;
+            input.select();
+            navigator.clipboard.writeText(input.value)
+                .then(() => showToast('Copiado al portapapeles'))
+                .catch(err => showToast('Error al copiar: ' + err));
+        }
+
+        function clearText() {
+            input.value = '';
+            showToast('Texto borrado');
+        }
+    </script>
+</body>
+</html>
